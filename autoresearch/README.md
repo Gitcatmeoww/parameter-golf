@@ -18,8 +18,8 @@ The agent follows `program.md`: creates a branch, edits `train_gpt.py`, launches
 
 ## Files
 
-- `program.md` — agent skill: setup, constraints, loop, submission protocol.
-  This is the file the **human** edits over time as you learn what works.
+- `program.md` — agent skill: setup, constraints, loop, submission protocol. The **human** edits this over time as you learn what works.
+- `ideas.md` — the prioritized experiment backlog (Top 3 + bench depth). The **human** edits this; the agent reads it as the source of the next experiment in the loop. See `program.md` setup step 3 and loop step 2 for how it's wired in.
 - `results.tsv` — per-experiment log (gitignored, regenerated per run).
 - `.gitignore` — keeps `results.tsv` out of git.
 

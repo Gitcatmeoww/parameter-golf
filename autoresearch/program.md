@@ -15,9 +15,9 @@ To set up a new experiment, work with the user to:
 2. **Create the branch**: `git checkout -b autoresearch/<tag>` from current `main`. Push it: `git push -u origin autoresearch/<tag>`. Subsequent pushes during the loop use `--force-with-lease` (see loop step 9) so `origin` always mirrors local — the TSV, not git history, is the audit trail for discarded experiments.
 3. **Read the in-scope files**:
    - `README.md` — challenge rules, constraints, leaderboard.
-   - `train_gpt.py` — the file you modify. Model, optimizer, training loop,
-     int8+zlib serialization, eval.
+   - `train_gpt.py` — the file you modify. Model, optimizer, training loop, int8+zlib serialization, eval.
    - `data/cached_challenge_fineweb.py` — data download script (read-only).
+   - `autoresearch/ideas.md` — **the prioritized experiment backlog** maintained by the human. Read the "TL;DR — Top 3" section, the "Note on cross-references" callout at the top, and the "Starting point for all three" line. The Top 3 plus nearby root-baseline-compatible ablations are your initial work queue; much of the rest of the doc is bench depth or future backlog. Inline references to `technique_map.md` / `pr_lineage.md` / `curriculum.md` / `fundamentals.md` / `credit_request_drafts.md` are placeholders — those files don't exist; do not chase them.
 4. **Verify data exists**: confirm `./data/datasets/fineweb10B_sp1024/` has at least `fineweb_val_*.bin` and one `fineweb_train_*.bin`, and `./data/tokenizers/fineweb_1024_bpe.model` exists. If not, tell the human to run `python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1` (smoke) or higher for real iteration.
 5. **Initialize results.tsv**: create `autoresearch/results.tsv` with just the header row (see "Logging results" below). Leave this file untracked.
 6. **Confirm and go**: confirm with the human that the setup looks good.
@@ -34,7 +34,7 @@ These come from the challenge rules. Violating them invalidates the run.
 - **10-minute wallclock cap on 8×H100** (record-track only): keep `MAX_WALLCLOCK_SECONDS=600`. For non-record exploration on a single GPU you can push longer, but record any deviation in the experiment description.
 - **No external compute, no validation peeking**: the eval harness inside `train_gpt.py` (the `eval_val` function and val_bpb computation) is functionally read-only. You may refactor it for speed but must produce identical val_bpb values. If you change anything in eval, prove equivalence.
 - **No new dependencies**: do not modify `requirements.txt`. Use what's already there. (You can import freely from already-installed packages.)
-- **No edits to `data/`**: dataset, tokenizer, and the download script are fixed.
+- **No edits to `data/` in this default loop**: dataset, tokenizer, and the download script are fixed. Ideas in `autoresearch/ideas.md` that require tokenizer retraining, sidecar operators, or data-curriculum changes are out of scope unless the human explicitly relaxes this rule.
 - **Do not rename success/cap log markers**: the loop greps `^final_int8_zlib_roundtrip_exact` (success indicator + score), `^Total submission size` (artifact size — both lines), and `^peak memory` (VRAM). You may change WHAT they report (e.g., a different compression scheme — many records do, like `int6+lzma`), but keep the line prefixes intact so the loop can still detect completion.
 
 ---
@@ -181,7 +181,7 @@ The experiment runs on a dedicated branch (e.g. `autoresearch/apr28a`).
 LOOP FOREVER:
 
 1. Look at the git state: the current branch/commit we're on.
-2. Tune `train_gpt.py` (or just env vars) with an experimental idea.
+2. **Pick the next experiment.** Default source: the next unattempted item in `autoresearch/ideas.md` that can be implemented from the repo-root `train_gpt.py` plus launch env vars while keeping the tokenizer/dataset fixed and without de-golfing a `records/` artifact. Work top-down within that in-scope subset: Top 3 first, then nearby root-baseline-compatible items such as activation ablations / MuonClip / differential-attention-style model-side changes. Skip ideas that require tokenizer changes, data-pipeline changes, or starting from a packed `records/.../train_gpt.py` blob unless the human explicitly broadens scope. For each idea, the doc gives you the parameter space, expected gain range, and stop conditions; respect them. Apply the change to `train_gpt.py` (or just env vars when the doc's parameter space is env-var-shaped). Only invent your own idea if the in-scope subset of `ideas.md` is exhausted (see "NEVER STOP" below).
 3. `git add -u && git commit -m "<short experiment description>"`
 4. Run the experiment (see "Running an experiment" above). Redirect to `run.log`. Do NOT use `tee`.
 5. Read out the results — see "Reading out results" above for the exact grep (CUDA and MLX print different lines).
@@ -205,12 +205,7 @@ runs the wallclock is ~10 min total — same kill threshold.
 **Crashes**: if it's something dumb (typo, missing import), fix and re-run. If
 the idea is fundamentally broken, log "crash" and move on.
 
-**NEVER STOP**: once the loop has begun, do NOT pause to ask "should I keep
-going?". The human might be asleep. You are autonomous. If you run out of
-ideas, think harder — re-read the README's "Requests for PRs" list, look at
-what's already on the leaderboard, look at recent record PRs in `records/`,
-combine previous near-misses, try more radical changes. The loop runs until
-the human interrupts, period.
+**NEVER STOP**: once the loop has begun, do NOT pause to ask "should I keep going?". The human might be asleep. You are autonomous. The loop runs until the human interrupts, period. If you exhaust the **in-scope subset** of `autoresearch/ideas.md` (the ideas that can be done from the repo-root `train_gpt.py` without tokenizer/data changes or de-golfing a packed `records/` artifact), then think harder: re-read the README's "Requests for PRs" list, look at what's already on the leaderboard, look at recent record PRs in `records/` (note: most recent records' `train_gpt.py` files are lzma+base85 self-extracting blobs — see `ideas.md`'s "Starting point" note), combine previous near-misses, try more radical changes. When you start inventing your own ideas, append a brief description to `autoresearch/ideas.md` so the human can review them later.
 
 ---
 
